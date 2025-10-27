@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8">
+  <div class="text-2xl font-bold mb-4">Simple Data Test</div>
+  <div class="bg-white p-4 rounded border">
+    <pre id="data-output"></pre>
+  </div>
+  <script>
+    fetch('http://localhost:8080/api/yields')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('data-output').textContent = JSON.stringify(data, null, 2);
+        
+        // Transform to chart format
+        const chartData = data.yields.map(point => ({
+          term: point.term,
+          yield: point.rate
+        }));
+        
+        console.log('Chart Data:', chartData);
+        console.log('Data types:', chartData.map(d => ({
+          term: typeof d.term,
+          yield: typeof d.yield,
+          yieldValue: d.yield
+        })));
+      })
+      .catch(err => {
+        document.getElementById('data-output').textContent = 'Error: ' + err.message;
+      });
+  </script>
+</body>
+</html>
