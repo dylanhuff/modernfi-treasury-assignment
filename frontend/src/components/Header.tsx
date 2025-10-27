@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { useTransactionRefresh } from '../contexts/TransactionRefreshContext';
 import { Select, SelectItem, Button } from '@tremor/react';
 import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { TransactionModal } from './TransactionModal';
+import { fetchUserHoldings } from '../services/api';
 import type { TransactionType } from '../types/transaction';
+import type { Holding } from '../types/holding';
 
 interface HeaderProps {
   onStartTour?: () => void;
@@ -15,6 +17,36 @@ export function Header({ onStartTour }: HeaderProps) {
   const { refreshTransactions } = useTransactionRefresh();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>('fund');
+  const [treasuriesBalance, setTreasuriesBalance] = useState<number>(0);
+  const [loadingHoldings, setLoadingHoldings] = useState<boolean>(false);
+
+  // Fetch holdings and calculate total treasuries balance
+  useEffect(() => {
+    const loadHoldingsBalance = async () => {
+      if (!currentUser) {
+        setTreasuriesBalance(0);
+        return;
+      }
+
+      try {
+        setLoadingHoldings(true);
+        const holdings = await fetchUserHoldings(currentUser.id);
+        // Sum up all remaining_amount (face value) from active holdings
+        const total = holdings.reduce((sum: number, holding: Holding) => {
+          const remainingAmount = parseFloat(holding.remaining_amount);
+          return sum + (remainingAmount > 0 ? remainingAmount : 0);
+        }, 0);
+        setTreasuriesBalance(total);
+      } catch (error) {
+        console.error('Failed to fetch holdings for balance:', error);
+        setTreasuriesBalance(0);
+      } finally {
+        setLoadingHoldings(false);
+      }
+    };
+
+    loadHoldingsBalance();
+  }, [currentUser]);
 
   if (isLoading) {
     return (
@@ -54,16 +86,34 @@ export function Header({ onStartTour }: HeaderProps) {
             </Select>
           </div>
 
-          {/* Balance Display */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" data-tour-id="balance-display">
-            <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Balance:</span>
-            <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {currentUser
-                ? `$${currentUser.balance.toLocaleString('en-US', {
+          {/* Balance Displays */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Cash Balance */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" data-tour-id="balance-display">
+              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Cash Balance:</span>
+              <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {currentUser
+                  ? `$${currentUser.balance.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`
+                  : '-'}
+              </div>
+            </div>
+
+            {/* Treasuries Balance */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <span className="text-sm text-blue-600 dark:text-blue-400 whitespace-nowrap">Treasuries Balance:</span>
+              <div className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                {loadingHoldings ? (
+                  <div className="h-6 w-24 bg-blue-200 dark:bg-blue-800 rounded animate-pulse"></div>
+                ) : (
+                  `$${treasuriesBalance.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}`
-                : '-'}
+                )}
+              </div>
             </div>
           </div>
 
@@ -115,6 +165,19 @@ export function Header({ onStartTour }: HeaderProps) {
         onSuccess={async () => {
           await refreshUser();
           refreshTransactions();
+          // Refresh treasuries balance after transaction
+          if (currentUser) {
+            try {
+              const holdings = await fetchUserHoldings(currentUser.id);
+              const total = holdings.reduce((sum: number, holding: Holding) => {
+                const remainingAmount = parseFloat(holding.remaining_amount);
+                return sum + (remainingAmount > 0 ? remainingAmount : 0);
+              }, 0);
+              setTreasuriesBalance(total);
+            } catch (error) {
+              console.error('Failed to refresh holdings balance:', error);
+            }
+          }
         }}
       />
     </header>

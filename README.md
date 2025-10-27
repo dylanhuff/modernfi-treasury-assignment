@@ -30,20 +30,32 @@ This application provides real-time treasury yield curve visualization and allow
 
 ## Quick Start (Docker - Recommended)
 
-Run the entire application with a single command:
-
+### 1. Start all services
 ```bash
 docker compose up -d
 ```
 
-Access the application:
-- Frontend: http://localhost
-- Backend API: http://localhost:8080
-- Health check: http://localhost:8080/health
+This command automatically builds the Docker images from source (first run takes 2-3 minutes) and starts all services.
 
-Stop the application:
+### 2. Initialize database with schema and demo data
+```bash
+cd backend/db
+./deploy-fresh-schema.sh local
+```
+
+### 3. Access the application
+- **Frontend:** http://localhost
+- **Backend API:** http://localhost:8080
+- **Health check:** http://localhost:8080/health
+
+**Note:** The backend preloads yield data cache on startup (10-30 seconds). The chart may need 1-2 refreshes initially.
+
+### Stop the application
 ```bash
 docker compose down
+
+# To remove all data and start fresh
+docker compose down -v
 ```
 
 ## Development Setup
@@ -65,15 +77,27 @@ cd backend/db
 docker exec treasury_postgres psql -U postgres -d treasury_db -c "SELECT name, balance FROM users;"
 ```
 
-### 3. Start Backend
+### 3. Configure Backend Environment
+The `.env` file is included in this repository for demo purposes only (contains default local credentials).
+
+**⚠️ Note:** In production applications, `.env` files should **never** be committed to version control as they typically contain sensitive secrets.
+
+For local development, the existing `.env` file in `backend/` should work as-is. If needed, you can recreate it:
 ```bash
 cd backend
+echo 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/treasury_db?sslmode=disable' > .env
+```
+
+### 4. Start Backend
+```bash
 go run ./cmd/server/main.go
 ```
 
 Backend runs on http://localhost:8080
 
-### 4. Start Frontend
+**Note:** On first startup, the backend will warm the cache by fetching historical yield data for all time periods (1W, 1M, 3M, 6M, 1Y, 5Y, 10Y, 30Y). This process takes 10-30 seconds. During this time, the yield curve chart may show loading states or require a refresh.
+
+### 5. Start Frontend
 ```bash
 cd frontend
 npm install
@@ -82,17 +106,17 @@ npm run dev
 
 Frontend runs on http://localhost:5173
 
-## Building Docker Images
+## Rebuilding Docker Images
 
-To build images manually:
+Images are built automatically on first `docker compose up -d`. Rebuild manually when you make code changes:
 
 ```bash
-# Build all services
+# Rebuild all services
 docker compose build
 
-# Build specific service
-docker compose build backend
-docker compose build frontend
+# Rebuild and restart specific service
+docker compose up -d --build backend
+docker compose up -d --build frontend
 ```
 
 ## API Endpoints
@@ -154,6 +178,20 @@ npm test
 
 ## Troubleshooting
 
+### Starting completely fresh
+If you want to remove all existing containers and start from scratch:
+```bash
+# Remove all containers and volumes
+docker compose down -v
+
+# Remove any lingering containers (if any exist from previous runs)
+docker rm -f treasury_postgres treasury_backend treasury_frontend 2>/dev/null || true
+
+# Restart with Quick Start or Development Setup steps
+docker compose up -d
+cd backend/db && ./deploy-fresh-schema.sh local
+```
+
 ### Port 80 already in use
 ```bash
 # Check what's using port 80
@@ -168,6 +206,13 @@ lsof -i :80
 ```bash
 docker compose down -v
 docker compose up -d
+```
+
+### Backend won't start - "DATABASE_URL not set"
+Make sure you've created the `.env` file in the `backend/` directory:
+```bash
+cd backend
+echo 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/treasury_db?sslmode=disable' > .env
 ```
 
 ### View logs
@@ -188,5 +233,7 @@ A 30-second screen recording demonstrating the application functionality is incl
 
 - Initial user accounts are created via seed data with demo balances
 - Treasury yield data is cached for 1 hour from Treasury.gov
+- **First-time startup:** The backend preloads the yield data cache on startup, which can take 10-30 seconds. The yield curve chart may require 1-2 manual refreshes during this initial cache warming period.
 - Buy orders for T-Bills use discount pricing (pay less than face value)
 - Sell operations calculate accrued yield based on time held and current rates
+- **Security Note:** The `.env` file is committed to this repository for demo/assignment purposes only with default local credentials. In production, `.env` files should always be gitignored and never committed to version control.

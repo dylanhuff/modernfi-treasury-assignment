@@ -29,9 +29,9 @@ export const TOUR_STEPS: TourStep[] = [
     disableBeacon: true,
   },
   {
-    // Step 3: Balance Display - Shows current account balance
+    // Step 3: Balance Displays - Shows cash balance and treasuries portfolio value
     target: '[data-tour-id="balance-display"]',
-    content: 'Your current account balance is displayed here. This balance updates in real-time as you buy or sell treasuries, deposit funds, or withdraw money.',
+    content: 'Your account balances are displayed here. Cash Balance shows your available funds for purchasing treasuries, while Treasuries Balance shows the total face value of your treasury portfolio. Both update in real-time as you transact.',
     placement: 'bottom',
     disableBeacon: true,
   },
